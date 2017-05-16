@@ -66,7 +66,7 @@ void broadcast(struct roomer *proomer, int type, char *msg)
 		proom = proomer->curroom;
 	switch (type) {
 	case ENTR:
-		strcpy(buff, "[ROOM] New roomer here: ");
+		strcpy(buff, "[ROOM] Привет, ");
 		strcat(buff, proomer->name);
 		strcat(buff, "\n");
 		pthread_mutex_lock(&room_mutex);
@@ -78,7 +78,7 @@ void broadcast(struct roomer *proomer, int type, char *msg)
 		pthread_mutex_unlock(&room_mutex);
 		break;
 	case LVNG:
-		strcpy(buff, "[ROOM] Say goodbye to: ");
+		strcpy(buff, "[ROOM] До встречи, ");
 		strcat(buff, proomer->name);
 		strcat(buff, "\n");
 		pthread_mutex_lock(&room_mutex);
@@ -125,13 +125,13 @@ void enter_room(struct roomer *proomer)
 
 	pthread_mutex_lock(&room_mutex);
 	proomer->curroom->counter++;
-	strcpy(buff, "You entered room \"");
+	strcpy(buff, "Вы вошли в комнату \"");
 	strcat(buff, proomer->curroom->name);
 	strcat(buff, "\" [");
 	strcat(buff, longtostring(proomer->curroom->counter, tempbuff));
 	strcat(buff, "/10]\n");
 	write(proomer->sockinf.sockfd, buff, strlen(buff));
-	strcpy(buff, "Roomers: ");
+	strcpy(buff, "Постояльцы: ");
 	for (i = 0; i < proomer->curroom->counter; i++) {
 		strcat(buff, proomer->curroom->members[i]->name);
 		write(proomer->sockinf.sockfd, buff, strlen(buff));
@@ -140,8 +140,7 @@ void enter_room(struct roomer *proomer)
 	pthread_mutex_unlock(&room_mutex);
 
 	buff[strlen(buff)-2] = 0;
-	strcat(buff, "\nType /leave for leave.\n");
-	strcat(buff, "Be polite!\n");
+	strcat(buff, "\nНапишите /leave чтобы выйти.\n");
 	write(proomer->sockinf.sockfd, buff, strlen(buff));
 
 	print(proomer->name);
@@ -160,7 +159,8 @@ void select_room(struct roomer *proomer)
 	char tempbuff[STRLEN*2] = {0};
 	int i;
 
-	strcpy(buff, "Choose room or create new one\n");
+	strcpy(buff,
+	"Выберите комнату или создайте новую.\n");
 	write(proomer->sockinf.sockfd, buff, strlen(buff));
 	for (i = 1; i < MAXRM; i++) {
 		if (rooms[i] != NULL) {
@@ -171,7 +171,7 @@ void select_room(struct roomer *proomer)
 			write(proomer->sockinf.sockfd, buff, strlen(buff));
 		}
 	}
-	strcpy(buff, "n) *create new*\n");
+	strcpy(buff, "n) *создать новую*\n");
 	write(proomer->sockinf.sockfd, buff, strlen(buff));
 }
 
@@ -220,9 +220,11 @@ void *reader(void *arg)
 		j = checkbuff(buff, nread);
 		if (j) {
 			if (j == 1)
-				strcpy(buff, "Type normal symbols, please.\n");
+				strcpy(buff,
+				"Только печатные символы.\n");
 			if (j == 2)
-				strcpy(buff, "Empty input is not allowed.\n");
+				strcpy(buff,
+				"Очень информативно.\n");
 			write(proomer->sockinf.sockfd, buff, strlen(buff));
 			continue;
 		}
@@ -261,7 +263,8 @@ void *reader(void *arg)
 			break;
 		case CH_ROOM:
 			if (buff[0] == 'n') {
-				strcpy(buff, "Write room name: ");
+				strcpy(buff,
+				"Название комнаты: ");
 				write(proomer->sockinf.sockfd,
 						buff, strlen(buff));
 				proomer->state = NEW_ROOM;
@@ -278,7 +281,8 @@ void *reader(void *arg)
 
 					enter_room(proomer);
 				} else {
-					strcpy(buff, "This room is full.\n");
+					strcpy(buff,
+			"Комната переполнена.\n");
 					write(proomer->sockinf.sockfd,
 						buff, strlen(buff));
 					break;
@@ -286,7 +290,8 @@ void *reader(void *arg)
 				pthread_mutex_unlock(&room_mutex);
 			}
 			if (proomer->state != READY) {
-				strcpy(buff, "Please, type correctly.\n");
+				strcpy(buff,
+			"Цифра или [n].\n");
 				write(proomer->sockinf.sockfd,
 					buff, strlen(buff));
 			}
@@ -383,9 +388,10 @@ void *listener(void *arg)
 				IPtostring(proomer->sockinf.address, buff));
 		println(proomer->ipport);
 
-		strcpy(buff, "\nWelcome to Chatroom!\n");
+		strcpy(buff,
+		"\nДобро пожаловать в Chatroom!\n");
 		write(sockfd, buff, strlen(buff));
-		strcpy(buff, "Please, type your name: ");
+		strcpy(buff, "Как Вас зовут? ");
 		write(sockfd, buff, strlen(buff));
 
 		pthread_create(&proomer->readthread, NULL,

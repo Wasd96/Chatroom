@@ -109,10 +109,32 @@ char *IPtostring(struct sockaddr_in address, char *string)
 char checkbuff(char *buff, int length)
 {
 	int i = 0;
+	char f47 = 0;
+	char f48 = 0;
 
-	for (i; i < length-1; i++)
-		if (buff[i] < 32 || buff[i] > 126)
-			return 1;
+	for (i; i < length-1; i++) {
+		if (f48) {
+			if (buff[i] <= -65 && buff[i] >= -112) {
+				f48 = 0;
+				continue;
+			}
+		}
+		if (f47) {
+			if (buff[i] <= -113 && buff[i] >= -128) {
+				f47 = 0;
+				continue;
+			}
+		}
+		if (buff[i] < 32 || buff[i] > 126) {
+			if (buff[i] == -48)
+				f48 = 1;
+			else
+				if (buff[i] == -47)
+					f47 = 1;
+			else
+				return 1;
+		}
+	}
 	if (length == 1)
 		return 2;
 	return 0;
