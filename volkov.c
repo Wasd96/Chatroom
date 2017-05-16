@@ -24,6 +24,9 @@ void operror(char code)
 	case 5:
 		strcpy(str, "Error: cant find created room\n");
 		break;
+	case 6:
+		strcpy(str, "Error: init mutex\n");
+		break;
 	default:
 		strcpy(str, "Some error occured\n");
 	}

@@ -10,7 +10,6 @@
 
 #include "volkov.h"
 
-
 #define MAXCL 64
 #define MAXRM 64
 
@@ -55,12 +54,12 @@ struct roomer {
 
 struct roomer **clients;
 struct room **rooms;
-
+pthread_mutex_t room_mutex;
 
 void broadcast(struct roomer *proomer, int type, char *msg)
 {
 	int i = 0;
-	char buff[STRLEN] = {0};
+	char buff[STRLEN*2] = {0};
 	struct room *proom;
 
 	if (proomer != NULL)
@@ -70,31 +69,40 @@ void broadcast(struct roomer *proomer, int type, char *msg)
 		strcpy(buff, "[ROOM] New roomer here: ");
 		strcat(buff, proomer->name);
 		strcat(buff, "\n");
+		pthread_mutex_lock(&room_mutex);
 		for (i = 0; i < proom->counter; i++) {
 			if (proom->members[i] != proomer)
 				write(proom->members[i]->sockinf.sockfd,
 					buff, strlen(buff));
 		}
+		pthread_mutex_unlock(&room_mutex);
 		break;
 	case LVNG:
 		strcpy(buff, "[ROOM] Say goodbye to: ");
 		strcat(buff, proomer->name);
 		strcat(buff, "\n");
+		pthread_mutex_lock(&room_mutex);
 		for (i = 0; i < proom->counter; i++) {
 			if (proom->members[i] != proomer)
 				write(proom->members[i]->sockinf.sockfd,
 					buff, strlen(buff));
 		}
+		pthread_mutex_unlock(&room_mutex);
 		break;
 	case TEXT:
-		strcpy(buff, proomer->name);
-		strcat(buff, " > ");
-		strcat(buff, msg);
+		pthread_mutex_lock(&room_mutex);
 		for (i = 0; i < proom->counter; i++) {
-			if (proom->members[i] != proomer)
+			if (proom->members[i] != proomer) {
+				strcpy(buff, proomer->name);
 				write(proom->members[i]->sockinf.sockfd,
 					buff, strlen(buff));
+				strcpy(buff, " > ");
+				strcat(buff, msg);
+				write(proom->members[i]->sockinf.sockfd,
+					buff, strlen(buff));
+			}
 		}
+		pthread_mutex_unlock(&room_mutex);
 		break;
 	case SERV:
 		strcpy(buff, "[SERVER] ");
@@ -111,10 +119,11 @@ void broadcast(struct roomer *proomer, int type, char *msg)
 
 void enter_room(struct roomer *proomer)
 {
-	char buff[STRLEN] = {0};
-	char tempbuff[STRLEN] = {0};
+	char buff[STRLEN*2] = {0};
+	char tempbuff[STRLEN*2] = {0};
 	int i;
 
+	pthread_mutex_lock(&room_mutex);
 	proomer->curroom->counter++;
 	strcpy(buff, "You entered room \"");
 	strcat(buff, proomer->curroom->name);
@@ -125,17 +134,19 @@ void enter_room(struct roomer *proomer)
 	strcpy(buff, "Roomers: ");
 	for (i = 0; i < proomer->curroom->counter; i++) {
 		strcat(buff, proomer->curroom->members[i]->name);
-		strcat(buff, ", ");
+		write(proomer->sockinf.sockfd, buff, strlen(buff));
+		strcpy(buff, ", ");
 	}
+	pthread_mutex_unlock(&room_mutex);
+
 	buff[strlen(buff)-2] = 0;
 	strcat(buff, "\nType /leave for leave.\n");
 	strcat(buff, "Be polite!\n");
 	write(proomer->sockinf.sockfd, buff, strlen(buff));
 
-	strcpy(buff, proomer->name);
-	strcat(buff, ": moved to room: ");
-	strcat(buff, proomer->curroom->name);
-	println(buff);
+	print(proomer->name);
+	print(": moved to room: ");
+	println(proomer->curroom->name);
 
 	broadcast(proomer, ENTR, NULL);
 
@@ -145,8 +156,8 @@ void enter_room(struct roomer *proomer)
 
 void select_room(struct roomer *proomer)
 {
-	char buff[STRLEN] = {0};
-	char tempbuff[STRLEN] = {0};
+	char buff[STRLEN*2] = {0};
+	char tempbuff[STRLEN*2] = {0};
 	int i;
 
 	strcpy(buff, "Choose room or create new one\n");
@@ -167,11 +178,11 @@ void select_room(struct roomer *proomer)
 
 void leave_room(struct roomer *proomer)
 {
-	char buff[STRLEN] = {0};
 	int i;
 
 	broadcast(proomer, LVNG, NULL);
 
+	pthread_mutex_lock(&room_mutex);
 	proomer->curroom->counter--;
 	i = 0;
 	while (proomer->curroom->members[i] != proomer) {
@@ -181,11 +192,11 @@ void leave_room(struct roomer *proomer)
 	}
 	for (i; i < 9; i++)
 		proomer->curroom->members[i] = proomer->curroom->members[i+1];
+	pthread_mutex_unlock(&room_mutex);
 
-	strcpy(buff, proomer->name);
-	strcat(buff, ": left room: ");
-	strcat(buff, proomer->curroom->name);
-	println(buff);
+	print(proomer->name);
+	print(": left room: ");
+	println(proomer->curroom->name);
 
 	proomer->curroom = NULL;
 	proomer->state = CH_ROOM;
@@ -195,7 +206,7 @@ void leave_room(struct roomer *proomer)
 void *reader(void *arg)
 {
 	struct roomer *proomer;
-	char buff[STRLEN] = {0};
+	char buff[STRLEN*2] = {0};
 	int roomsel = 0;
 
 	proomer = (struct roomer *)arg;
@@ -204,7 +215,7 @@ void *reader(void *arg)
 		int i = 0;
 		int j = 0;
 
-		memset(buff, 0, STRLEN);
+		memset(buff, 0, STRLEN*2);
 		nread = read(proomer->sockinf.sockfd, buff, STRLEN);
 		j = checkbuff(buff, nread);
 		if (j) {
@@ -227,6 +238,7 @@ void *reader(void *arg)
 			println("has been lost.");
 			close(proomer->sockinf.sockfd);
 			free(clients[proomer->id]);
+			pthread_mutex_unlock(&room_mutex);
 			pthread_exit("0");
 		}
 
@@ -236,7 +248,7 @@ void *reader(void *arg)
 			proomer->state = LEAVE;
 		switch (proomer->state) {
 		case SET_NAME:
-			strcpy(proomer->name, buff);
+			strncpy(proomer->name, buff, STRLEN-1);
 			proomer->name[strlen(proomer->name)-1] = 0;
 			print(proomer->ipport);
 			print(" is set name to \"");
@@ -257,10 +269,12 @@ void *reader(void *arg)
 			}
 			roomsel = strtol(buff, NULL, 10);
 			if (rooms[roomsel] != NULL) {
+				pthread_mutex_lock(&room_mutex);
 				j = rooms[roomsel]->counter;
 				if (j < 10) {
 					rooms[roomsel]->members[j] = proomer;
 					proomer->curroom = rooms[roomsel];
+					pthread_mutex_unlock(&room_mutex);
 
 					enter_room(proomer);
 				} else {
@@ -269,6 +283,7 @@ void *reader(void *arg)
 						buff, strlen(buff));
 					break;
 				}
+				pthread_mutex_unlock(&room_mutex);
 			}
 			if (proomer->state != READY) {
 				strcpy(buff, "Please, type correctly.\n");
@@ -389,6 +404,9 @@ int main(int argc, char *argv[])
 	rooms = (struct room **)calloc(MAXRM, sizeof(struct room *));
 
 	signal(SIGINT, SIG_IGN);
+	res = pthread_mutex_init(&room_mutex, NULL);
+	if (res != 0)
+		operror(MUTEX);
 
 	serv.sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (serv.sockfd == -1)

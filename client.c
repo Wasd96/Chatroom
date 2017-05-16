@@ -13,13 +13,13 @@
 void *reader(void *arg)
 {
 	int *sockfd;
-	char buff[STRLEN];
+	char buff[STRLEN*2];
 
 	sockfd = (int *)arg;
 	while (1) {
 		int nread;
 
-		nread = read(*sockfd, buff, STRLEN);
+		nread = read(*sockfd, buff, STRLEN*2);
 		if (nread != 0)
 			write(1, buff, nread);
 	}

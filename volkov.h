@@ -10,7 +10,8 @@ enum errorCode {
 	BIND,
 	ACCEPT,
 	LEAVING,
-	NW_ROOM
+	NW_ROOM,
+	MUTEX
 };
 
 
